@@ -300,6 +300,28 @@
       save(); updatePoints(); renderClaims(); renderRewards();
     }
 
+    // ---------- Reward CRUD ----------
+    function editReward(id){
+      const r = state.rewards.find(x=>x.id===id); if(!r) return;
+      const newName = prompt('Rename reward:', r.name);
+      if(newName===null) return; // cancelled
+      const newCost = Number(prompt('Cost (points):', r.cost));
+      if(!Number.isFinite(newCost) || newCost < 1){
+        alert('Cost must be a positive number.');
+        return;
+      }
+      r.name = (newName.trim() || r.name);
+      r.cost = Math.floor(newCost);
+      save();
+      renderRewards();
+    }
+    function deleteReward(id){
+      if(!confirm('Delete this reward?')) return;
+      state.rewards = state.rewards.filter(x=>x.id !== id);
+      save();
+      renderRewards();
+    }
+
     // ---------- Rendering ----------
     function updateDateChips(){
       $('#todayKey').textContent = `Today: ${dateKey()}`;
@@ -346,10 +368,33 @@
     }
 
     function renderRewards(){
-      const wrap = $('#rewards'); wrap.innerHTML='';
+      const wrap = document.getElementById('rewards'); wrap.innerHTML='';
       if(state.rewards.length===0){
         const e=document.createElement('div'); e.className='muted'; e.textContent='No rewards yet.'; wrap.appendChild(e); return;
       }
+      state.rewards.forEach(r=>{
+        const card = document.createElement('div'); card.className='reward';
+        // header with actions
+        const header = document.createElement('div');
+        header.style.display='flex'; header.style.alignItems='center'; header.style.justifyContent='space-between';
+        const title = document.createElement('h4'); title.textContent=r.name; title.style.margin='0';
+        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='6px';
+        const editBtn = document.createElement('button'); editBtn.className='small secondary'; editBtn.textContent='Edit';
+        editBtn.addEventListener('click', ()=> editReward(r.id));
+        const delBtn = document.createElement('button'); delBtn.className='small ghost'; delBtn.textContent='Delete';
+        delBtn.addEventListener('click', ()=> deleteReward(r.id));
+        actions.append(editBtn, delBtn);
+        header.append(title, actions);
+        card.appendChild(header);
+
+        const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
+        const btn = document.createElement('button'); btn.textContent='Claim'; btn.style.marginTop='8px';
+        btn.disabled = state.points < r.cost;
+        btn.addEventListener('click',()=> claimReward(r.id));
+        card.appendChild(btn);
+        wrap.appendChild(card);
+      });
+    }
       state.rewards.forEach(r=>{
         const card = document.createElement('div'); card.className='reward';
         const h4 = document.createElement('h4'); h4.textContent=r.name; card.appendChild(h4);
@@ -432,8 +477,18 @@
 
     // --- PWA: Service Worker ---
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(console.error);
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('./sw.js');
+          // Check for updates on each load so HTML changes are picked up
+          reg.update().catch(()=>{});
+        } catch (err) {
+          console.error(err);
+        }
+      });
+      // If a new SW takes control, reload to get fresh assets
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
       });
     }
 
