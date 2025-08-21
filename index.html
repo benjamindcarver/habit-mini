@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Habit Mini — Points & Rewards</title>
+  <style>
+    :root{
+      --bg:#f7f8fb; --card:#ffffff; --text:#0f172a; --muted:#64748b; --brand:#2563eb; --brand-2:#4f46e5; --ok:#16a34a; --warn:#ca8a04; --danger:#dc2626; --ring:#dbeafe;
+      --radius:16px; --shadow:0 8px 28px rgba(2,6,23,.08); --shadow-sm:0 2px 12px rgba(2,6,23,.06);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji; background:var(--bg); color:var(--text)}
+    .wrap{max-width:1100px;margin:32px auto;padding:0 16px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    h1{font-size:24px;margin:0;letter-spacing:.2px}
+    .points{display:flex;gap:12px;align-items:center;background:var(--card);padding:10px 14px;border-radius:999px;box-shadow:var(--shadow-sm);border:1px solid #eef2ff}
+    .points strong{font-size:18px}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    @media (max-width:940px){.grid{grid-template-columns:1fr}}
+
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #eef2ff}
+    .card h2{font-size:18px;margin:0 0 12px 0}
+    .card .head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0 16px}
+    .card .body{padding:16px}
+    .muted{color:var(--muted)}
+
+    form.inline{display:grid;grid-template-columns:1fr 130px 130px 120px;gap:10px}
+    @media (max-width:780px){form.inline{grid-template-columns:1fr 120px 120px}}
+    @media (max-width:620px){form.inline{grid-template-columns:1fr 1fr}}
+
+    input[type="text"], input[type="number"], select{width:100%;padding:12px 12px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;outline:none}
+    input[type="text"]:focus, input[type="number"]:focus, select:focus{border-color:#bfdbfe;box-shadow:0 0 0 6px var(--ring)}
+    button{cursor:pointer;border:0;border-radius:12px;padding:12px 14px;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;font-weight:600;box-shadow:var(--shadow-sm)}
+    button.secondary{background:#f1f5f9;color:#0f172a}
+    button.ghost{background:transparent;color:var(--muted)}
+    button.small{padding:8px 10px;border-radius:10px}
+    button:disabled{opacity:.6;cursor:not-allowed}
+
+    .list{display:flex;flex-direction:column;gap:10px}
+    .habit{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #eef2ff;border-radius:14px}
+    .habit:hover{box-shadow:var(--shadow-sm)}
+    .habit .name{font-weight:600}
+    .habit .meta{font-size:12px;color:var(--muted)}
+    .habit .actions{display:flex;gap:8px}
+
+    .section-title{display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px 0}
+    .col{display:flex;flex-direction:column;gap:12px}
+
+    .reward-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .reward{border:1px solid #eef2ff;border-radius:14px;padding:12px}
+    .reward h4{margin:0 0 6px 0}
+    .reward .cost{font-size:12px;color:var(--muted)}
+
+    .claims{display:flex;flex-direction:column;gap:8px;font-size:14px}
+
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px}
+    .pill{font-size:12px;background:#eef2ff;color:#1e40af;padding:6px 10px;border-radius:999px;border:1px solid #dbeafe}
+    footer{margin:18px 0;color:var(--muted);font-size:12px}
+
+    .checkbox{--s:20px;position:relative;width:var(--s);height:var(--s)}
+    .checkbox input{appearance:none;width:var(--s);height:var(--s);margin:0;border:2px solid #cbd5e1;border-radius:7px;display:grid;place-items:center;transition:.15s ease}
+    .checkbox input:checked{background:#22c55e;border-color:#22c55e}
+    .checkbox svg{position:absolute;inset:0;transform:scale(.7);fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  </style>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Habit Mini <span class="muted">— Daily & Weekly with Points</span></h1>
+      <div class="points" aria-live="polite">
+        <span class="pill" id="todayLabel"></span>
+        <span>Total Points:</span> <strong id="totalPoints">0</strong>
+      </div>
+      <button id="installBtn" class="small secondary" style="display:none">Install App</button>
+    </header>
+
+    <div class="grid">
+      <!-- Left: Habits -->
+      <section class="col">
+        <article class="card">
+          <div class="head">
+            <h2>Add a Habit</h2>
+          </div>
+          <div class="body">
+            <form id="habitForm" class="inline" autocomplete="off">
+              <input id="habitName" type="text" placeholder="Habit name (e.g., 10k steps)" required />
+              <select id="habitFreq" aria-label="Frequency">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+              <input id="habitPoints" type="number" min="1" step="1" value="10" placeholder="Points" />
+              <button type="submit">Add Habit</button>
+            </form>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="head">
+            <h2>Daily Habits</h2>
+            <div class="toolbar">
+              <span class="pill" id="todayKey"></span>
+            </div>
+          </div>
+          <div class="body">
+            <div id="dailyList" class="list" aria-live="polite"></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="head">
+            <h2>Weekly Habits</h2>
+            <div class="toolbar">
+              <span class="pill" id="weekKey"></span>
+            </div>
+          </div>
+          <div class="body">
+            <div id="weeklyList" class="list" aria-live="polite"></div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Right: Rewards & Backup -->
+      <section class="col">
+        <article class="card">
+          <div class="head">
+            <h2>Add a Reward</h2>
+          </div>
+          <div class="body">
+            <form id="rewardForm" class="inline" autocomplete="off" style="grid-template-columns:1fr 140px 120px;">
+              <input id="rewardName" type="text" placeholder="Reward (e.g., Latte)" required />
+              <input id="rewardCost" type="number" min="1" step="1" value="100" placeholder="Cost (pts)" />
+              <button type="submit">Add Reward</button>
+            </form>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="head">
+            <h2>Rewards</h2>
+            <div class="toolbar">
+              <button id="resetPoints" class="small secondary" title="Set total points to 0">Reset Points</button>
+            </div>
+          </div>
+          <div class="body">
+            <div id="rewards" class="reward-list"></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="head">
+            <h2>Recent Claims</h2>
+            <div class="toolbar">
+              <button id="clearClaims" class="small ghost">Clear</button>
+            </div>
+          </div>
+          <div class="body">
+            <div id="claims" class="claims"></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="head">
+            <h2>Backup</h2>
+          </div>
+          <div class="body" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button id="exportBtn" class="secondary">Export JSON</button>
+            <label class="pill" style="cursor:pointer">
+              Import JSON <input id="importFile" type="file" accept="application/json" style="display:none" />
+            </label>
+            <button id="wipeAll" class="ghost" style="margin-left:auto;color:#b91c1c">Wipe Everything</button>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <footer>
+      Data is stored locally in your browser (localStorage). Opening this file on the same laptop & browser will keep your habits and points.
+    </footer>
+  </div>
+
+  <template id="habitRow">
+    <div class="habit" data-id="">
+      <label class="checkbox" title="Mark complete">
+        <input type="checkbox" />
+        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      </label>
+      <div>
+        <div class="name"></div>
+        <div class="meta"></div>
+      </div>
+      <div class="actions">
+        <button class="small secondary editBtn" title="Edit">✏️</button>
+        <button class="small ghost delBtn" title="Delete">🗑️</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // ---------- Utilities ----------
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    function pad2(n){return String(n).padStart(2,'0');}
+    function dateKey(d=new Date()){
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      return `${x.getFullYear()}-${pad2(x.getMonth()+1)}-${pad2(x.getDate())}`;
+    }
+    function isoWeekKey(d=new Date()){
+      const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      // ISO week: move to Thursday
+      const day = (date.getDay() + 6) % 7; // 0=Mon
+      date.setDate(date.getDate() - day + 3);
+      const firstThursday = new Date(date.getFullYear(), 0, 4);
+      const dayDiff = (date - firstThursday) / 86400000;
+      const week = 1 + Math.round(dayDiff / 7);
+      return `${date.getFullYear()}-W${pad2(week)}`;
+    }
+
+    // ---------- Persistence ----------
+    const KEY = 'habitMini.v1';
+    const emptyState = { habits: [], rewards: [], claims: [], points: 0, completions: {} };
+    let state = load();
+
+    function load(){
+      try{ return JSON.parse(localStorage.getItem(KEY)) || structuredClone(emptyState); }
+      catch{ return structuredClone(emptyState); }
+    }
+    function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+
+    // ---------- Habits ----------
+    function addHabit(name, frequency, points){
+      const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random());
+      state.habits.push({ id, name, frequency, points: Math.max(1, Math.floor(points||1)), createdAt: Date.now() });
+      if(!state.completions[id]) state.completions[id] = { daily: [], weekly: [] };
+      save();
+      render();
+    }
+    function deleteHabit(id){
+      state.habits = state.habits.filter(h=>h.id!==id);
+      delete state.completions[id];
+      save(); render();
+    }
+    function editHabit(id){
+      const h = state.habits.find(x=>x.id===id); if(!h) return;
+      const newName = prompt('Rename habit:', h.name);
+      if(newName===null) return;
+      const newPts = Number(prompt('Points per completion:', h.points));
+      if(!Number.isFinite(newPts) || newPts<1) return alert('Points must be a positive number.');
+      h.name = newName.trim()||h.name; h.points = Math.floor(newPts);
+      save(); render();
+    }
+
+    function isCompleted(habit){
+      const comp = state.completions[habit.id] || { daily:[], weekly:[] };
+      if(habit.frequency==='daily') return new Set(comp.daily).has(dateKey());
+      return new Set(comp.weekly).has(isoWeekKey());
+    }
+
+    function toggleCompletion(id, checked){
+      const h = state.habits.find(x=>x.id===id); if(!h) return;
+      const comp = state.completions[id] || (state.completions[id] = { daily:[], weekly:[] });
+      const today = dateKey();
+      const wkey = isoWeekKey();
+      if(h.frequency==='daily'){
+        const set = new Set(comp.daily);
+        const have = set.has(today);
+        if(checked && !have){ set.add(today); state.points += h.points; }
+        if(!checked && have){ set.delete(today); state.points = Math.max(0, state.points - h.points); }
+        comp.daily = [...set];
+      } else {
+        const set = new Set(comp.weekly);
+        const have = set.has(wkey);
+        if(checked && !have){ set.add(wkey); state.points += h.points; }
+        if(!checked && have){ set.delete(wkey); state.points = Math.max(0, state.points - h.points); }
+        comp.weekly = [...set];
+      }
+      save();
+      updatePoints();
+    }
+
+    // ---------- Rewards ----------
+    function addReward(name, cost){
+      const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random());
+      state.rewards.push({ id, name, cost: Math.max(1, Math.floor(cost||1)) });
+      save(); renderRewards();
+    }
+    function claimReward(id){
+      const r = state.rewards.find(x=>x.id===id); if(!r) return;
+      if(state.points < r.cost) return;
+      state.points -= r.cost;
+      state.claims.unshift({ id: String(Date.now()), name: r.name, cost: r.cost, at: Date.now() });
+      state.claims = state.claims.slice(0, 50);
+      save(); updatePoints(); renderClaims(); renderRewards();
+    }
+
+    // ---------- Rendering ----------
+    function updateDateChips(){
+      $('#todayKey').textContent = `Today: ${dateKey()}`;
+      $('#weekKey').textContent = `Week: ${isoWeekKey()}`;
+      $('#todayLabel').textContent = new Date().toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+    }
+
+    function updatePoints(){ $('#totalPoints').textContent = state.points; save(); }
+
+    function renderHabits(){
+      const daily = state.habits.filter(h=>h.frequency==='daily');
+      const weekly = state.habits.filter(h=>h.frequency==='weekly');
+
+      const tpl = id=>{
+        const t = document.getElementById('habitRow');
+        return t.content.firstElementChild.cloneNode(true);
+      };
+
+      const mount = (list, arr)=>{
+        list.innerHTML = '';
+        if(arr.length===0){
+          const empty = document.createElement('div');
+          empty.className='muted'; empty.textContent='No habits yet.';
+          list.appendChild(empty); return;
+        }
+        arr.forEach(h=>{
+          const el = tpl();
+          el.dataset.id = h.id;
+          el.querySelector('.name').textContent = h.name;
+          el.querySelector('.meta').textContent = `${h.frequency==='daily'?'Daily':'Weekly'} • ${h.points} pts`;
+          const cb = el.querySelector('input[type="checkbox"]');
+          cb.checked = isCompleted(h);
+          cb.addEventListener('change', e=> toggleCompletion(h.id, e.target.checked));
+          el.querySelector('.delBtn').addEventListener('click',()=>{
+            if(confirm('Delete this habit?')) deleteHabit(h.id);
+          });
+          el.querySelector('.editBtn').addEventListener('click',()=> editHabit(h.id));
+          list.appendChild(el);
+        });
+      };
+
+      mount(document.getElementById('dailyList'), daily);
+      mount(document.getElementById('weeklyList'), weekly);
+    }
+
+    function renderRewards(){
+      const wrap = document.getElementById('rewards'); wrap.innerHTML='';
+      if(state.rewards.length===0){
+        const e=document.createElement('div'); e.className='muted'; e.textContent='No rewards yet.'; wrap.appendChild(e); return;
+      }
+      state.rewards.forEach(r=>{
+        const card = document.createElement('div'); card.className='reward';
+        const h4 = document.createElement('h4'); h4.textContent=r.name; card.appendChild(h4);
+        const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
+        const btn = document.createElement('button'); btn.textContent='Claim'; btn.style.marginTop='8px';
+        btn.disabled = state.points < r.cost;
+        btn.addEventListener('click',()=> claimReward(r.id));
+        card.appendChild(btn);
+        wrap.appendChild(card);
+      });
+    }
+
+    function renderClaims(){
+      const c = document.getElementById('claims'); c.innerHTML='';
+      if(state.claims.length===0){ const e=document.createElement('div'); e.className='muted'; e.textContent='No claims yet.'; c.appendChild(e); return; }
+      state.claims.forEach(x=>{
+        const d = new Date(x.at);
+        const row = document.createElement('div');
+        row.textContent = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} — “${x.name}” (−${x.cost} pts)`;
+        c.appendChild(row);
+      });
+    }
+
+    function render(){ updateDateChips(); updatePoints(); renderHabits(); renderRewards(); renderClaims(); }
+
+    // ---------- Backup & Controls ----------
+    function exportJSON(){
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=`habit-mini-backup-${dateKey()}.json`; a.click(); URL.revokeObjectURL(url);
+    }
+
+    function importJSON(file){
+      const reader = new FileReader();
+      reader.onload = () => {
+        try{
+          const incoming = JSON.parse(reader.result);
+          if(!incoming || typeof incoming !== 'object') throw new Error('Invalid file');
+          state = Object.assign(structuredClone(emptyState), incoming);
+          save(); render();
+        } catch(err){ alert('Import failed: ' + err.message); }
+      };
+      reader.readAsText(file);
+    }
+
+    function wipeAll(){ if(!confirm('This will remove all habits, points, rewards, and history. Continue?')) return; localStorage.removeItem(KEY); state = structuredClone(emptyState); render(); }
+
+    // ---------- Init & Events ----------
+    document.getElementById('habitForm').addEventListener('submit', e=>{
+      e.preventDefault();
+      const name = document.getElementById('habitName').value.trim();
+      const freq = document.getElementById('habitFreq').value;
+      const pts  = Number(document.getElementById('habitPoints').value||'10');
+      if(!name) return;
+      addHabit(name, freq, pts);
+      e.target.reset();
+    });
+
+    document.getElementById('rewardForm').addEventListener('submit', e=>{
+      e.preventDefault();
+      const name = document.getElementById('rewardName').value.trim();
+      const cost = Number(document.getElementById('rewardCost').value||'1');
+      if(!name) return;
+      addReward(name, cost);
+      e.target.reset();
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', exportJSON);
+    document.getElementById('importFile').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) importJSON(f); e.target.value=''; });
+    document.getElementById('wipeAll').addEventListener('click', wipeAll);
+    document.getElementById('resetPoints').addEventListener('click', ()=>{ if(confirm('Set total points to 0?')){ state.points=0; save(); updatePoints(); renderRewards(); }});
+    document.getElementById('clearClaims').addEventListener('click', ()=>{ state.claims=[]; save(); renderClaims(); });
+
+    // Auto-refresh date/labels at midnight without reloading
+    (function scheduleMidnightTick(){
+      const now = new Date();
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0,0,2);
+      setTimeout(()=>{ updateDateChips(); renderHabits(); scheduleMidnightTick(); }, next-now);
+    })();
+
+    // --- PWA: Service Worker ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(console.error);
+      });
+    }
+
+    // --- PWA: Install Button ---
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('installBtn');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installBtn) installBtn.style.display = 'inline-flex';
+    });
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        installBtn.disabled = true;
+        try {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+        } finally {
+          installBtn.style.display = 'none';
+          installBtn.disabled = false;
+          deferredPrompt = null;
+        }
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>
