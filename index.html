@@ -281,6 +281,8 @@
       }
       save();
       updatePoints();
+      // ensure reward buttons enable/disable immediately when points change
+      renderRewards();
     }
 
     // ---------- Rewards ----------
@@ -339,12 +341,12 @@
         });
       };
 
-      mount(document.getElementById('dailyList'), daily);
-      mount(document.getElementById('weeklyList'), weekly);
+      mount($('#dailyList'), daily);
+      mount($('#weeklyList'), weekly);
     }
 
     function renderRewards(){
-      const wrap = document.getElementById('rewards'); wrap.innerHTML='';
+      const wrap = $('#rewards'); wrap.innerHTML='';
       if(state.rewards.length===0){
         const e=document.createElement('div'); e.className='muted'; e.textContent='No rewards yet.'; wrap.appendChild(e); return;
       }
@@ -361,7 +363,7 @@
     }
 
     function renderClaims(){
-      const c = document.getElementById('claims'); c.innerHTML='';
+      const c = $('#claims'); c.innerHTML='';
       if(state.claims.length===0){ const e=document.createElement('div'); e.className='muted'; e.textContent='No claims yet.'; c.appendChild(e); return; }
       state.claims.forEach(x=>{
         const d = new Date(x.at);
