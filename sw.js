@@ -1,36 +1,48 @@
-const CACHE_NAME = 'habit-mini-v2';
-const ASSETS = [
-  './',
-  'index.html',
-  'manifest.webmanifest',
-  'icons/icon-192.png',
-  'icons/icon-512.png',
-];
+// sw.js — auto-update friendly
+const RUNTIME = 'habit-mini-runtime-v1';
 
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+self.addEventListener('install', (event) => {
+  // Activate immediately on install
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))),
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== RUNTIME).map(k => caches.delete(k)))
+    )
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', event => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
+// Network-first for HTML (navigation) so updates appear without bumps.
+// Stale-while-revalidate for everything else.
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  const accept = req.headers.get('accept') || '';
+
+  // Treat navigations/HTML as network-first
+  if (req.mode === 'navigate' || accept.includes('text/html')) {
+    event.respondWith(
+      fetch(req)
+        .then(resp => {
+          const copy = resp.clone();
+          caches.open(RUNTIME).then(c => c.put('offline.html', copy)).catch(() => {});
+          return resp;
+        })
+        .catch(async () => (await caches.match('offline.html')) || caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Everything else: stale-while-revalidate
   event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) return cached;
-      return fetch(request).then(resp => {
-        const copy = resp.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy)).catch(()=>{});
-        return resp;
-      }).catch(() => caches.match('./'));
+    caches.match(req).then(cached => {
+      const fetchPromise = fetch(req).then(networkResp => {
+        caches.open(RUNTIME).then(c => c.put(req, networkResp.clone())).catch(() => {});
+        return networkResp;
+      }).catch(() => cached);
+      return cached || fetchPromise;
     })
   );
 });
