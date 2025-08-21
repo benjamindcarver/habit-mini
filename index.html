@@ -247,12 +247,9 @@
     }
     function editHabit(id){
       const h = state.habits.find(x=>x.id===id); if(!h) return;
-      const newName = prompt('Rename habit:', h.name);
-      if(newName===null) return;
-      const newPts = Number(prompt('Points per completion:', h.points));
-      if(!Number.isFinite(newPts) || newPts<1) return alert('Points must be a positive number.');
-      h.name = newName.trim()||h.name; h.points = Math.floor(newPts);
-      save(); render();
+      const row = document.querySelector(`.habit[data-id="${id}"]`);
+      if(!row) return;
+      startEditHabit(row, h);
     }
 
     function isCompleted(habit){
@@ -322,6 +319,71 @@
       renderRewards();
     }
 
+    // ---------- Inline Editors ----------
+    function startEditHabit(row, h){
+      const info = row.querySelector('.name').parentElement;
+      const actions = row.querySelector('.actions');
+
+      // Build inputs
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = h.name;
+      nameInput.placeholder = 'Habit name';
+      nameInput.style.marginBottom = '6px';
+
+      const ptsInput = document.createElement('input');
+      ptsInput.type = 'number';
+      ptsInput.min = '1';
+      ptsInput.step = '1';
+      ptsInput.value = h.points;
+
+      info.innerHTML = '';
+      info.append(nameInput, ptsInput);
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'small secondary';
+      saveBtn.textContent = 'Save';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'small ghost';
+      cancelBtn.textContent = 'Cancel';
+
+      actions.innerHTML = '';
+      actions.append(saveBtn, cancelBtn);
+
+      saveBtn.addEventListener('click', ()=>{
+        const newName = nameInput.value.trim();
+        const newPts = Number(ptsInput.value);
+        if(!newName){ alert('Name is required.'); nameInput.focus(); return; }
+        if(!Number.isFinite(newPts) || newPts < 1){ alert('Points must be ≥ 1'); return; }
+        h.name = newName;
+        h.points = Math.floor(newPts);
+        save(); renderHabits();
+      });
+      cancelBtn.addEventListener('click', ()=> renderHabits());
+    }
+
+    function startEditReward(card, r){
+      card.innerHTML = '';
+      const title = document.createElement('h4'); title.textContent = 'Edit reward'; title.style.margin = '0 0 6px 0';
+      const nameInput = document.createElement('input'); nameInput.type='text'; nameInput.value=r.name; nameInput.placeholder='Reward name'; nameInput.style.marginTop='4px';
+      const costInput = document.createElement('input'); costInput.type='number'; costInput.min='1'; costInput.step='1'; costInput.value=r.cost; costInput.style.marginTop='8px';
+      const row = document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='10px';
+      const saveBtn = document.createElement('button'); saveBtn.className='small secondary'; saveBtn.textContent='Save';
+      const cancelBtn = document.createElement('button'); cancelBtn.className='small ghost'; cancelBtn.textContent='Cancel';
+      row.append(saveBtn, cancelBtn);
+      card.append(title, nameInput, costInput, row);
+
+      saveBtn.addEventListener('click', ()=>{
+        const newName = nameInput.value.trim();
+        const newCost = Number(costInput.value);
+        if(!newName){ alert('Name is required.'); nameInput.focus(); return; }
+        if(!Number.isFinite(newCost) || newCost < 1){ alert('Cost must be ≥ 1'); return; }
+        r.name = newName; r.cost = Math.floor(newCost);
+        save(); renderRewards();
+      });
+      cancelBtn.addEventListener('click', ()=> renderRewards());
+    }
+
     // ---------- Rendering ----------
     function updateDateChips(){
       $('#todayKey').textContent = `Today: ${dateKey()}`;
@@ -372,6 +434,31 @@
       if(state.rewards.length===0){
         const e=document.createElement('div'); e.className='muted'; e.textContent='No rewards yet.'; wrap.appendChild(e); return;
       }
+      state.rewards.forEach(r=>{
+        const card = document.createElement('div'); card.className='reward'; card.dataset.id = r.id;
+
+        // Header with title + actions
+        const header = document.createElement('div');
+        header.style.display='flex'; header.style.alignItems='center'; header.style.justifyContent='space-between';
+        const title = document.createElement('h4'); title.textContent=r.name; title.style.margin='0';
+        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='6px';
+        const editBtn = document.createElement('button'); editBtn.className='small secondary'; editBtn.textContent='Edit';
+        editBtn.addEventListener('click', ()=> startEditReward(card, r));
+        const delBtn = document.createElement('button'); delBtn.className='small ghost'; delBtn.textContent='Delete';
+        delBtn.addEventListener('click', ()=> deleteReward(r.id));
+        actions.append(editBtn, delBtn);
+        header.append(title, actions);
+        card.appendChild(header);
+
+        const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
+        const btn = document.createElement('button'); btn.textContent='Claim'; btn.style.marginTop='8px';
+        btn.disabled = state.points < r.cost;
+        btn.addEventListener('click',()=> claimReward(r.id));
+        card.appendChild(btn);
+
+        wrap.appendChild(card);
+      });
+    }
       state.rewards.forEach(r=>{
         const card = document.createElement('div'); card.className='reward';
         const h4 = document.createElement('h4'); h4.textContent=r.name; card.appendChild(h4);
@@ -496,4 +583,3 @@
   </script>
 </body>
 </html>
-
