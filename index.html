@@ -438,10 +438,20 @@
         const card = document.createElement('div'); card.className='reward';
         const h4 = document.createElement('h4'); h4.textContent=r.name; card.appendChild(h4);
         const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
-        const btn = document.createElement('button'); btn.textContent='Claim'; btn.style.marginTop='8px';
-        btn.disabled = state.points < r.cost;
-        btn.addEventListener('click',()=> claimReward(r.id));
-        card.appendChild(btn);
+
+        const row = document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='8px';
+        const claimBtn = document.createElement('button'); claimBtn.textContent='Claim';
+        claimBtn.disabled = state.points < r.cost;
+        claimBtn.addEventListener('click',()=> claimReward(r.id));
+
+        const editBtn = document.createElement('button'); editBtn.className='small secondary'; editBtn.textContent='Edit';
+        editBtn.addEventListener('click',()=> startEditReward(card, r));
+
+        const delBtn = document.createElement('button'); delBtn.className='small ghost'; delBtn.textContent='Delete';
+        delBtn.addEventListener('click',()=> deleteReward(r.id));
+
+        row.append(claimBtn, editBtn, delBtn);
+        card.appendChild(row);
         wrap.appendChild(card);
       });
     }
