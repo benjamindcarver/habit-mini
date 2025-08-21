@@ -374,33 +374,6 @@
       }
       state.rewards.forEach(r=>{
         const card = document.createElement('div'); card.className='reward';
-
-        // Header with title + actions
-        const header = document.createElement('div');
-        header.style.display='flex';
-        header.style.alignItems='center';
-        header.style.justifyContent='space-between';
-        const title = document.createElement('h4'); title.textContent=r.name; title.style.margin='0';
-        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='6px';
-        const editBtn = document.createElement('button'); editBtn.className='small secondary'; editBtn.textContent='Edit';
-        editBtn.addEventListener('click', ()=> editReward(r.id));
-        const delBtn = document.createElement('button'); delBtn.className='small ghost'; delBtn.textContent='Delete';
-        delBtn.addEventListener('click', ()=> deleteReward(r.id));
-        actions.append(editBtn, delBtn);
-        header.append(title, actions);
-        card.appendChild(header);
-
-        const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
-        const btn = document.createElement('button'); btn.textContent='Claim'; btn.style.marginTop='8px';
-        btn.disabled = state.points < r.cost;
-        btn.addEventListener('click',()=> claimReward(r.id));
-        card.appendChild(btn);
-
-        wrap.appendChild(card);
-      });
-    }
-      state.rewards.forEach(r=>{
-        const card = document.createElement('div'); card.className='reward';
         const h4 = document.createElement('h4'); h4.textContent=r.name; card.appendChild(h4);
         const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
         const btn = document.createElement('button'); btn.textContent='Claim'; btn.style.marginTop='8px';
@@ -523,3 +496,4 @@
   </script>
 </body>
 </html>
+
