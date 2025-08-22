@@ -63,6 +63,12 @@
     .checkbox input{appearance:none;width:var(--s);height:var(--s);margin:0;border:2px solid #cbd5e1;border-radius:7px;display:grid;place-items:center;transition:.15s ease}
     .checkbox input:checked{background:#22c55e;border-color:#22c55e}
     .checkbox svg{position:absolute;inset:0;transform:scale(.7);fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  
+
+    /* Water intake */
+    .water{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+    .water-cups{display:grid;grid-template-columns:repeat(8, 28px);gap:10px}
+    .water-cups .checkbox{--s:22px}
   </style>
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#2563eb" />
@@ -89,11 +95,12 @@
           <div class="body">
             <form id="habitForm" class="inline" autocomplete="off">
               <input id="habitName" type="text" placeholder="Habit name (e.g., 10k steps)" required />
-              <select id="habitFreq" aria-label="Frequency">
+              <select id="habitFreq" aria-label="Type">
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
+                <option value="moab">MOAB</option>
               </select>
-              <input id="habitPoints" type="number" min="1" step="1" value="10" placeholder="Points" />
+              <select id="habitPointsSelect" aria-label="Points"></select>
               <button type="submit">Add Habit</button>
             </form>
           </div>
@@ -122,6 +129,37 @@
             <div id="weeklyList" class="list" aria-live="polite"></div>
           </div>
         </article>
+        <!-- Water Intake -->
+        <article class="card">
+          <div class="head">
+            <h2>Water Intake</h2>
+            <div class="toolbar">
+              <span class="pill">Bonus: +25 pts</span>
+            </div>
+          </div>
+          <div class="body">
+            <div id="water" class="water">
+              <div id="waterCups" class="water-cups" aria-label="8 cups"></div>
+              <div>
+                <div id="waterProgress" class="muted">0/8 cups</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- MOAB -->
+        <article class="card">
+          <div class="head">
+            <h2>MOAB</h2>
+            <div class="toolbar">
+              <span class="pill">Big ticket tasks</span>
+            </div>
+          </div>
+          <div class="body">
+            <div id="moabList" class="list" aria-live="polite"></div>
+          </div>
+        </article>
+
       </section>
 
       <!-- Right: Rewards & Backup -->
@@ -131,9 +169,21 @@
             <h2>Add a Reward</h2>
           </div>
           <div class="body">
-            <form id="rewardForm" class="inline" autocomplete="off" style="grid-template-columns:1fr 140px 120px;">
+            <form id="rewardForm" class="inline" autocomplete="off" style="grid-template-columns:1fr 160px 120px;">
               <input id="rewardName" type="text" placeholder="Reward (e.g., Latte)" required />
-              <input id="rewardCost" type="number" min="1" step="1" value="100" placeholder="Cost (pts)" />
+              <select id="rewardCostSelect" aria-label="Cost (pts)">
+                <option value="50">50</option>
+                <option value="75">75</option>
+                <option value="100" selected>100</option>
+                <option value="125">125</option>
+                <option value="150">150</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+                <option value="750">750</option>
+                <option value="1000">1000</option>
+                <option value="2500">2500</option>
+                <option value="5000">5000</option>
+              </select>
               <button type="submit">Add Reward</button>
             </form>
           </div>
@@ -194,8 +244,8 @@
         <div class="meta"></div>
       </div>
       <div class="actions">
-        <button class="small secondary editBtn" title="Edit">✏️</button>
-        <button class="small ghost delBtn" title="Delete">🗑️</button>
+        <button type="button" class="small secondary editBtn" title="Edit">✏️</button>
+        <button type="button" class="small ghost delBtn" title="Delete">🗑️</button>
       </div>
     </div>
   </template>
@@ -223,7 +273,8 @@
 
     // ---------- Persistence ----------
     const KEY = 'habitMini.v1';
-    const emptyState = { habits: [], rewards: [], claims: [], points: 0, completions: {} };
+    const WATER_BONUS = 25;
+    const emptyState = { habits: [], rewards: [], claims: [], points: 0, completions: {}, water: {} };
     let state = load();
 
     function load(){
@@ -236,7 +287,7 @@
     function addHabit(name, frequency, points){
       const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random());
       state.habits.push({ id, name, frequency, points: Math.max(1, Math.floor(points||1)), createdAt: Date.now() });
-      if(!state.completions[id]) state.completions[id] = { daily: [], weekly: [] };
+      if(!state.completions[id]) state.completions[id] = { daily: [], weekly: [], moab: [] };
       save();
       render();
     }
@@ -253,14 +304,19 @@
     }
 
     function isCompleted(habit){
-      const comp = state.completions[habit.id] || { daily:[], weekly:[] };
+      const comp = state.completions[habit.id] || (state.completions[habit.id] = { daily:[], weekly:[], moab:[] });
+      // normalize moab to an array of YYYY-MM-DD strings
+      if(!Array.isArray(comp.moab)) comp.moab = comp.moab ? [dateKey()] : [];
       if(habit.frequency==='daily') return new Set(comp.daily).has(dateKey());
-      return new Set(comp.weekly).has(isoWeekKey());
+      if(habit.frequency==='weekly') return new Set(comp.weekly).has(isoWeekKey());
+      // MOAB resets daily: completion is tied to today's date
+      return new Set(comp.moab).has(dateKey());
     }
 
     function toggleCompletion(id, checked){
       const h = state.habits.find(x=>x.id===id); if(!h) return;
-      const comp = state.completions[id] || (state.completions[id] = { daily:[], weekly:[] });
+      const comp = state.completions[id] || (state.completions[id] = { daily:[], weekly:[], moab:[] });
+      if(!Array.isArray(comp.moab)) comp.moab = comp.moab ? [dateKey()] : [];
       const today = dateKey();
       const wkey = isoWeekKey();
       if(h.frequency==='daily'){
@@ -269,16 +325,21 @@
         if(checked && !have){ set.add(today); state.points += h.points; }
         if(!checked && have){ set.delete(today); state.points = Math.max(0, state.points - h.points); }
         comp.daily = [...set];
-      } else {
+      } else if(h.frequency==='weekly'){
         const set = new Set(comp.weekly);
         const have = set.has(wkey);
         if(checked && !have){ set.add(wkey); state.points += h.points; }
         if(!checked && have){ set.delete(wkey); state.points = Math.max(0, state.points - h.points); }
         comp.weekly = [...set];
+      } else { // MOAB: once per day
+        const set = new Set(comp.moab);
+        const have = set.has(today);
+        if(checked && !have){ set.add(today); state.points += h.points; }
+        if(!checked && have){ set.delete(today); state.points = Math.max(0, state.points - h.points); }
+        comp.moab = [...set];
       }
       save();
       updatePoints();
-      // ensure reward buttons enable/disable immediately when points change
       renderRewards();
     }
 
@@ -313,7 +374,16 @@
       renderRewards();
     }
     function deleteReward(id){
-      if(!confirm('Delete this reward?')) return;
+      // Robust confirm: if dialogs are blocked (e.g., in preview iframes), proceed with deletion
+      let proceed = true;
+      try {
+        if (typeof window.confirm === 'function') {
+          const res = window.confirm('Delete this reward?');
+          // If user explicitly cancels, stop; if undefined (blocked) or true, proceed
+          proceed = (res !== false);
+        }
+      } catch { proceed = true; }
+      if(!proceed) return;
       state.rewards = state.rewards.filter(x=>x.id !== id);
       save();
       renderRewards();
@@ -341,9 +411,11 @@
       info.append(nameInput, ptsInput);
 
       const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
       saveBtn.className = 'small secondary';
       saveBtn.textContent = 'Save';
       const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
       cancelBtn.className = 'small ghost';
       cancelBtn.textContent = 'Cancel';
 
@@ -368,8 +440,8 @@
       const nameInput = document.createElement('input'); nameInput.type='text'; nameInput.value=r.name; nameInput.placeholder='Reward name'; nameInput.style.marginTop='4px';
       const costInput = document.createElement('input'); costInput.type='number'; costInput.min='1'; costInput.step='1'; costInput.value=r.cost; costInput.style.marginTop='8px';
       const row = document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='10px';
-      const saveBtn = document.createElement('button'); saveBtn.className='small secondary'; saveBtn.textContent='Save';
-      const cancelBtn = document.createElement('button'); cancelBtn.className='small ghost'; cancelBtn.textContent='Cancel';
+      const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='small secondary'; saveBtn.textContent='Save';
+      const cancelBtn = document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='small ghost'; cancelBtn.textContent='Cancel';
       row.append(saveBtn, cancelBtn);
       card.append(title, nameInput, costInput, row);
 
@@ -384,6 +456,54 @@
       cancelBtn.addEventListener('click', ()=> renderRewards());
     }
 
+    // ---------- Water Intake ----------
+    function getWaterEntry(key){
+      if(!state.water) state.water = {};
+      const e = state.water[key] || { cups: 0, bonus: false };
+      if(!state.water[key]) state.water[key] = e;
+      return e;
+    }
+
+    function renderWater(){
+      const today = dateKey();
+      const entry = getWaterEntry(today);
+      const cupsWrap = document.getElementById('waterCups');
+      const progress = document.getElementById('waterProgress');
+      if(!cupsWrap || !progress) return;
+      cupsWrap.innerHTML = '';
+
+      for(let i=0;i<8;i++){
+        const lab = document.createElement('label'); lab.className='checkbox'; lab.title = `Cup ${i+1}`;
+        const cb = document.createElement('input'); cb.type='checkbox';
+        cb.checked = i < entry.cups;
+        cb.addEventListener('change', ()=> onWaterChanged());
+        const svg = document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('viewBox','0 0 24 24');
+        const pl = document.createElementNS('http://www.w3.org/2000/svg','polyline'); pl.setAttribute('points','20 6 9 17 4 12'); svg.appendChild(pl);
+        lab.append(cb, svg);
+        cupsWrap.appendChild(lab);
+      }
+
+      progress.textContent = `${entry.cups}/8 cups`;
+
+      function onWaterChanged(){
+        const count = Array.from(cupsWrap.querySelectorAll('input[type="checkbox"]').values()).filter(x=>x.checked).length;
+        entry.cups = count;
+        if(count === 8 && !entry.bonus){
+          entry.bonus = true;
+          state.points += WATER_BONUS;
+          updatePoints();
+          renderRewards();
+        } else if(count < 8 && entry.bonus){
+          entry.bonus = false;
+          state.points = Math.max(0, state.points - WATER_BONUS);
+          updatePoints();
+          renderRewards();
+        }
+        progress.textContent = `${entry.cups}/8 cups`;
+        save();
+      }
+    }
+
     // ---------- Rendering ----------
     function updateDateChips(){
       $('#todayKey').textContent = `Today: ${dateKey()}`;
@@ -396,13 +516,15 @@
     function renderHabits(){
       const daily = state.habits.filter(h=>h.frequency==='daily');
       const weekly = state.habits.filter(h=>h.frequency==='weekly');
+      const moab   = state.habits.filter(h=>h.frequency==='moab');
 
-      const tpl = id=>{
+      const tpl = ()=>{
         const t = document.getElementById('habitRow');
         return t.content.firstElementChild.cloneNode(true);
       };
 
-      const mount = (list, arr)=>{
+      function mount(list, arr){
+        if(!list) return;
         list.innerHTML = '';
         if(arr.length===0){
           const empty = document.createElement('div');
@@ -413,20 +535,20 @@
           const el = tpl();
           el.dataset.id = h.id;
           el.querySelector('.name').textContent = h.name;
-          el.querySelector('.meta').textContent = `${h.frequency==='daily'?'Daily':'Weekly'} • ${h.points} pts`;
+          const label = h.frequency==='daily' ? 'Daily' : (h.frequency==='weekly' ? 'Weekly' : 'MOAB');
+          el.querySelector('.meta').textContent = `${label} • ${h.points} pts`;
           const cb = el.querySelector('input[type="checkbox"]');
           cb.checked = isCompleted(h);
           cb.addEventListener('change', e=> toggleCompletion(h.id, e.target.checked));
-          el.querySelector('.delBtn').addEventListener('click',()=>{
-            if(confirm('Delete this habit?')) deleteHabit(h.id);
-          });
+          el.querySelector('.delBtn').addEventListener('click',()=>{ if(confirm('Delete this habit?')) deleteHabit(h.id); });
           el.querySelector('.editBtn').addEventListener('click',()=> editHabit(h.id));
           list.appendChild(el);
         });
-      };
+      }
 
       mount($('#dailyList'), daily);
       mount($('#weeklyList'), weekly);
+      mount($('#moabList'), moab);
     }
 
     function renderRewards(){
@@ -440,15 +562,15 @@
         const cost = document.createElement('div'); cost.className='cost'; cost.textContent=`Cost: ${r.cost} pts`; card.appendChild(cost);
 
         const row = document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.marginTop='8px';
-        const claimBtn = document.createElement('button'); claimBtn.textContent='Claim';
+        const claimBtn = document.createElement('button'); claimBtn.type='button'; claimBtn.textContent='Claim';
         claimBtn.disabled = state.points < r.cost;
         claimBtn.addEventListener('click',()=> claimReward(r.id));
 
-        const editBtn = document.createElement('button'); editBtn.className='small secondary'; editBtn.textContent='Edit';
+        const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.className='small secondary'; editBtn.textContent='Edit';
         editBtn.addEventListener('click',()=> startEditReward(card, r));
 
-        const delBtn = document.createElement('button'); delBtn.className='small ghost'; delBtn.textContent='Delete';
-        delBtn.addEventListener('click',()=> deleteReward(r.id));
+        const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='small ghost'; delBtn.textContent='Delete'; delBtn.dataset.action='delete'; delBtn.dataset.id = r.id;
+        delBtn.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); deleteReward(r.id); });
 
         row.append(claimBtn, editBtn, delBtn);
         card.appendChild(row);
@@ -459,15 +581,19 @@
     function renderClaims(){
       const c = $('#claims'); c.innerHTML='';
       if(state.claims.length===0){ const e=document.createElement('div'); e.className='muted'; e.textContent='No claims yet.'; c.appendChild(e); return; }
+      const name = 'Ben';
+      const ord = (n)=>{ const s=['th','st','nd','rd'], v=n%100; return n + (s[(v-20)%10]||s[v]||s[0]); };
       state.claims.forEach(x=>{
         const d = new Date(x.at);
+        const weekday = d.toLocaleDateString(undefined, { weekday:'short' });
+        const month = d.toLocaleDateString(undefined, { month:'long' });
         const row = document.createElement('div');
-        row.textContent = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} — “${x.name}” (−${x.cost} pts)`;
+        row.textContent = `${name} purchased "${x.name}" for ${x.cost} pts on ${weekday}, ${month} ${ord(d.getDate())}.`;
         c.appendChild(row);
       });
     }
 
-    function render(){ updateDateChips(); updatePoints(); renderHabits(); renderRewards(); renderClaims(); }
+    function render(){ updateDateChips(); updatePoints(); renderHabits(); renderWater(); renderRewards(); renderClaims(); }
 
     // ---------- Backup & Controls ----------
     function exportJSON(){
@@ -492,20 +618,32 @@
     function wipeAll(){ if(!confirm('This will remove all habits, points, rewards, and history. Continue?')) return; localStorage.removeItem(KEY); state = structuredClone(emptyState); render(); }
 
     // ---------- Init & Events ----------
+    // Points choices for each type
+    const POINTS_OPTIONS = { daily:[5,10,15,20,25], weekly:[25,30,35,40,45,50], moab:[250,500,750,1000] };
+    function populatePointsFor(freq){
+      const sel = document.getElementById('habitPointsSelect'); if(!sel) return;
+      sel.innerHTML='';
+      (POINTS_OPTIONS[freq]||[]).forEach(v=>{ const o=document.createElement('option'); o.value=String(v); o.textContent=String(v); sel.appendChild(o); });
+    }
+    const freqSel = document.getElementById('habitFreq');
+    populatePointsFor(freqSel.value);
+    freqSel.addEventListener('change', e=> populatePointsFor(e.target.value));
     document.getElementById('habitForm').addEventListener('submit', e=>{
       e.preventDefault();
       const name = document.getElementById('habitName').value.trim();
       const freq = document.getElementById('habitFreq').value;
-      const pts  = Number(document.getElementById('habitPoints').value||'10');
+      const pts  = Number(document.getElementById('habitPointsSelect').value);
       if(!name) return;
       addHabit(name, freq, pts);
       e.target.reset();
+      document.getElementById('habitFreq').value = 'daily';
+      populatePointsFor('daily');
     });
 
     document.getElementById('rewardForm').addEventListener('submit', e=>{
       e.preventDefault();
       const name = document.getElementById('rewardName').value.trim();
-      const cost = Number(document.getElementById('rewardCost').value||'1');
+      const cost = Number(document.getElementById('rewardCostSelect').value);
       if(!name) return;
       addReward(name, cost);
       e.target.reset();
@@ -515,13 +653,32 @@
     document.getElementById('importFile').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) importJSON(f); e.target.value=''; });
     document.getElementById('wipeAll').addEventListener('click', wipeAll);
     document.getElementById('resetPoints').addEventListener('click', ()=>{ if(confirm('Set total points to 0?')){ state.points=0; save(); updatePoints(); renderRewards(); }});
-    document.getElementById('clearClaims').addEventListener('click', ()=>{ state.claims=[]; save(); renderClaims(); });
+    document.getElementById('clearClaims').addEventListener('click', ()=>{ 
+  state.claims=[]; 
+  save(); 
+  renderClaims(); 
+});
+
+// Delegated handler as a safety net for Delete buttons in Rewards
+const rewardsWrap = document.getElementById('rewards');
+if (rewardsWrap) {
+  rewardsWrap.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action="delete"]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = btn.dataset.id;
+    if (id) deleteReward(id);
+  });
+}
 
     // Auto-refresh date/labels at midnight without reloading
     (function scheduleMidnightTick(){
       const now = new Date();
       const next = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0,0,2);
       setTimeout(()=>{ updateDateChips(); renderHabits(); scheduleMidnightTick(); }, next-now);
+      // also refresh water UI at midnight
+      renderWater();
     })();
 
     // --- PWA: Service Worker ---
